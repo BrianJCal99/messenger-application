@@ -15,8 +15,19 @@ export default function SignIn() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    async function fetchSession() {
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session) {
+        router.push("/chat");
+      }
+      if(error){
+        console.log(error)
+      }
+    }
+
+    fetchSession();
     setIsClient(true);
-  }, []);
+  }, [router]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,11 +40,11 @@ export default function SignIn() {
       email: formData.email,
       password: formData.password,
     });
-    
-    if(error){
-      alert(error)
-    }else{
-      router.push("/chat")
+
+    if (error) {
+      alert(error);
+    } else {
+      router.push("/chat");
     }
   };
 

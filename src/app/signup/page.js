@@ -19,8 +19,18 @@ export default function SignUp() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    async function fetchSession() {
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session) {
+        router.push("/chat");
+      }
+      if(error){
+        console.log(error)
+      }
+    }
+    fetchSession();
     setIsClient(true);
-  }, []);
+  }, [router]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
