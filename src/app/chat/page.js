@@ -19,6 +19,8 @@ export default function Example() {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [user, setUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
     setIsClient(true);
@@ -44,7 +46,49 @@ export default function Example() {
       }
     }
     fetchUser();
+
+    async function fetchMessages() {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("sent_at", { ascending: true });
+      if (error) {
+        console.log(error);
+      } else {
+        setMessages(data);
+      }
+    }
+    fetchMessages();
+
+    const subscription = supabase
+      .channel("messages")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          setMessages((prevMessages) => [...prevMessages, payload.new]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, [router]);
+
+  async function sendMessage() {
+    if (!newMessage.trim()) return;
+    const { error } = await supabase
+      .from("messages")
+      .insert([
+        { content: newMessage, user_id: user?.id},
+      ]);
+    if (error) {
+      console.log(error);
+    } else {
+      setNewMessage("");
+    }
+  }
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -187,10 +231,34 @@ export default function Example() {
           </DisclosurePanel>
         </Disclosure>
 
-        <main>
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-            {/* Your content */}
-            Hi
+        <main className="max-w-7xl mx-auto p-6">
+          <div className="border rounded-lg p-4 h-[500px] overflow-y-auto">
+            {messages.map((msg) => (
+              <div key={msg.id} className="flex items-start gap-2.5 mb-3">
+                <div className="flex flex-col w-full max-w-[320px] leading-1.5 p-4 border-gray-200 bg-gray-100 rounded-xl dark:bg-gray-700">
+                  <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{msg.user_id}</span>
+                  </div>
+                  <p className="text-sm font-normal py-2.5 text-gray-900 dark:text-white">{msg.content}</p>
+                  <span className="text-sm font-normal text-gray-500 dark:text-gray-400">{msg.sent_at}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex mt-4">
+            <input
+              type="text"
+              className="flex-1 p-2 border rounded"
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+            />
+            <button
+              onClick={sendMessage}
+              className="ml-2 px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Send
+            </button>
           </div>
         </main>
       </div>

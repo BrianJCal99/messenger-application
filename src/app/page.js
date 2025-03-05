@@ -38,7 +38,7 @@ export default function Home() {
             Signup
           </Link>
           <Link
-            href="sigin"
+            href="signin"
             className="font-semibold text-indigo-600 hover:text-indigo-500"
           >
             Signin
