@@ -2,7 +2,7 @@
 
 import supabase from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Disclosure,
   DisclosureButton,
@@ -21,10 +21,17 @@ export default function Example() {
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [usernames, setUsernames] = useState({});
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   useEffect(() => {
-    setIsClient(true);
-
     async function fetchSession() {
       const { data, error } = await supabase.auth.getSession();
       if (!data?.session) {
@@ -60,6 +67,20 @@ export default function Example() {
     }
     fetchMessages();
 
+    async function fetchUsernames() {
+      const { data, error } = await supabase
+        .from("users")
+        .select("user_id, username");
+      if (!error && data) {
+        const usernameMap = {};
+        data.forEach((u) => {
+          usernameMap[u.user_id] = u.username;
+        });
+        setUsernames(usernameMap);
+      }
+    }
+    fetchUsernames();
+
     const subscription = supabase
       .channel("messages")
       .on(
@@ -70,6 +91,8 @@ export default function Example() {
         }
       )
       .subscribe();
+      
+    setIsClient(true);
 
     return () => {
       supabase.removeChannel(subscription);
@@ -80,9 +103,7 @@ export default function Example() {
     if (!newMessage.trim()) return;
     const { error } = await supabase
       .from("messages")
-      .insert([
-        { content: newMessage, user_id: user?.id},
-      ]);
+      .insert([{ content: newMessage, user_id: user?.id }]);
     if (error) {
       console.log(error);
     } else {
@@ -99,6 +120,31 @@ export default function Example() {
     }
   }
 
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    // Format time in 12-hour format with AM/PM
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12; // Convert to 12-hour format
+    const time = `${hours}:${minutes} ${ampm}`;
+
+    // Format date
+    const month = date.toLocaleString("default", { month: "short" });
+    const day = date.getDate();
+    const year = date.getFullYear();
+    const formattedDate = `${month} ${day}, ${year}`;
+
+    return isToday ? time : `${formattedDate} ${time}`;
+  };
+
   if (!isClient) {
     return null;
   }
@@ -110,7 +156,7 @@ export default function Example() {
             <div className="flex h-16 items-center justify-between">
               <div className="flex items-center">
                 <div className="shrink-0">
-                  <span className="text-white">Chatr</span>
+                  <span className="text-white">{/* Application Name */}</span>
                 </div>
                 <div className="hidden md:block">
                   <div className="ml-10 flex items-baseline space-x-4"></div>
@@ -119,7 +165,7 @@ export default function Example() {
               <div className="hidden md:block">
                 <div className="ml-4 flex items-center md:ml-6">
                   <span className="m-3 text-white">
-                    Welcome, {user?.user_metadata?.userName || " "}
+                    {user?.user_metadata?.userName || " "}
                   </span>
 
                   {/* Profile dropdown */}
@@ -232,34 +278,102 @@ export default function Example() {
         </Disclosure>
 
         <main className="max-w-7xl mx-auto p-6">
-          <div className="border rounded-lg p-4 h-[500px] overflow-y-auto">
+          <div className="p-4 h-[80vh] overflow-y-auto">
             {messages.map((msg) => (
-              <div key={msg.id} className="flex items-start gap-2.5 mb-3">
-                <div className="flex flex-col w-full max-w-[320px] leading-1.5 p-4 border-gray-200 bg-gray-100 rounded-xl dark:bg-gray-700">
-                  <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{msg.user_id}</span>
-                  </div>
-                  <p className="text-sm font-normal py-2.5 text-gray-900 dark:text-white">{msg.content}</p>
-                  <span className="text-sm font-normal text-gray-500 dark:text-gray-400">{msg.sent_at}</span>
-                </div>
+              <div
+                key={msg.id}
+                className={`flex gap-2.5 mb-3 ${
+                  msg.user_id === user?.id ? "justify-end" : "justify-start"
+                }`}
+              >
+                {msg.user_id === user?.id ? (
+                  <>
+                    <div
+                      className={`flex flex-col w-full max-w-[320px] leading-1.5 p-4 border-gray-200 bg-gray-100 rounded-s-xl rounded-ee-xl dark:bg-gray-700 ${
+                        msg.user_id === user?.id ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                            {formatTimestamp(msg.sent_at)}{" "}
+                            <span className="font-bold text-base text-black ml-3">
+                              You
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-normal py-2.5 text-gray-900 dark:text-white">
+                        {msg.content}
+                      </p>
+                    </div>
+                    <Avatar
+                      name={user?.user_metadata?.userName || " "}
+                      size={40}
+                      variant="beam"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Avatar
+                      name={usernames[msg.user_id] || " "}
+                      size={40}
+                      variant="beam"
+                    />
+                    <div
+                      className={`flex flex-col w-full max-w-[320px] leading-1.5 p-4 border-gray-200 bg-gray-100 rounded-e-xl rounded-es-xl dark:bg-gray-700 items-start"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {(
+                            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                              <span className="font-bold text-base text-black mr-3">
+                                {usernames[msg.user_id]}
+                              </span>
+                              {formatTimestamp(msg.sent_at)}
+                            </span>
+                          ) || (
+                            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                              <span className="font-bold text-base text-black mr-3">
+                                Unknown
+                              </span>
+                              {formatTimestamp(msg.sent_at)}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-sm font-normal py-2.5 text-gray-900 dark:text-white">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
-          <div className="flex mt-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendMessage();
+            }}
+            className="flex mt-4"
+          >
             <input
               type="text"
-              className="flex-1 p-2 border rounded"
+              className="flex-1 p-2 border border-gray-600 rounded"
               placeholder="Type a message..."
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
             />
             <button
-              onClick={sendMessage}
-              className="ml-2 px-4 py-2 bg-blue-600 text-white rounded"
+              type="submit"
+              className="ml-2 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-600"
             >
               Send
             </button>
-          </div>
+          </form>
         </main>
       </div>
     </>
