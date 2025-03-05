@@ -1,6 +1,6 @@
 Live chat application built using Next.js and Supabase.
 
-![Alt text](Screenshot 2025-03-05 145724.png)
+![Alt text](https://github.com/BrianJCal99/messenger-application/blob/v1.0/Screenshot%202025-03-05%20145724.png)
 
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
